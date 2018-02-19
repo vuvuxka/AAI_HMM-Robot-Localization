@@ -1,0 +1,1365 @@
+#LyX 2.1 created this file. For more info see http://www.lyx.org/
+\lyxformat 474
+\begin_document
+\begin_header
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman default
+\font_sans default
+\font_typewriter default
+\font_math auto
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100
+\font_tt_scale 100
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\biblio_style plain
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+\noindent
+
+\size huge
+HMM: Robot localization
+\size default
+
+\begin_inset Newline newline
+\end_inset
+
+
+\size larger
+Applied Artificial Intelligence
+\end_layout
+
+\begin_layout Author
+\noindent
+Daniel Eliassin and Eva Gala
+\end_layout
+
+\begin_layout Section
+\noindent
+Introduction 
+\end_layout
+
+\begin_layout Standard
+\noindent
+The goal to this work is to develop a robot localization based on a hidden
+ Markov model.
+ It will also be needed to build the robot that the agent will try to track.
+ 
+\end_layout
+
+\begin_layout Standard
+\noindent
+We have chosen to implement this in Java, and following the course 
+\shape slanted
+Applied Artificial Intelligence
+\shape default
+ and the book 
+\bar under
+Artificial Intelligence: A Modern Approach
+\bar default
+ by Stuart Russell and Peter Norvig.
+\end_layout
+
+\begin_layout Standard
+\noindent
+Our work has two main parts: to generate the robot that will move according
+ to the probabilities that had been given, and the algorithm that will try
+ to track the moves of the robot and approximate its position.
+ This last one is the one we are going to call agent for now on.
+ 
+\end_layout
+
+\begin_layout Section
+\noindent
+Basic Program
+\end_layout
+
+\begin_layout Standard
+First we needed to lay down the basic design of the program.
+ Some of the important parts are described briefly below:
+\end_layout
+
+\begin_layout Itemize
+\noindent
+
+\emph on
+MainWindow:
+\emph default
+ this class shows the result.
+ Represents a grill with the real position, and the estimation.
+ We'll explain later how does it represents.
+ 
+\end_layout
+
+\begin_layout Itemize
+\noindent
+
+\emph on
+Robot:
+\emph default
+ this class contains the robot that we'll track.
+ It generates the aleatory moves, according to some established probabilities,
+ that the robot will be doing while the agent tries to track it.
+ It also has the sensor with the respective error.
+ 
+\end_layout
+
+\begin_layout Itemize
+\noindent
+
+\emph on
+HmmAgent:
+\emph default
+ the fundamental part of this assignment is the approximation of the location
+ based on a hidden Markov mode.
+ This is what is done in this class.
+ We generate the most probable states, and also keep the probabilities of
+ each state.
+ 
+\end_layout
+
+\begin_layout Itemize
+\noindent
+
+\emph on
+The math package:
+\emph default
+ we used this as auxiliary classes.
+ We need them to managed the matrices and its operations.
+ We borrowed this code from the code repo for the course book: Artificial
+ Intelligence: A Modern Approch.
+\end_layout
+
+\begin_layout Itemize
+\noindent
+
+\emph on
+Direction, State, Point 
+\emph default
+and
+\emph on
+ Room
+\emph default
+: another auxiliary classes useful to manipulate the positions and directions.
+\end_layout
+
+\begin_layout Section
+HmmAgent
+\end_layout
+
+\begin_layout Standard
+For updating the agent, first we need to get he new evidence from the 
+\emph on
+Robot
+\emph default
+.
+ Then we need the sensor model matrix (
+\begin_inset Formula $O$
+\end_inset
+
+) and the transition matrix (
+\begin_inset Formula $T$
+\end_inset
+
+).
+\end_layout
+
+\begin_layout Subsection
+Transition matrix (
+\begin_inset Formula $T$
+\end_inset
+
+ )
+\end_layout
+
+\begin_layout Standard
+The transition matrix is used during the update, even though it is generated
+ at the constructor of the function.
+ This is possible since it won't change with the time.
+ It represents the probabilities of the robot to go to one state 
+\begin_inset Formula $j$
+\end_inset
+
+ at time 
+\begin_inset Formula $t$
+\end_inset
+
+ assuming it was at state 
+\begin_inset Formula $i$
+\end_inset
+
+ at time 
+\begin_inset Formula $t-1$
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+T[i][j]=P(X_{t}=j|X_{t-1}=i)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+For calculating this, first we check the directions that lead the robot
+ against a wall (
+\begin_inset Formula $notDirec$
+\end_inset
+
+).
+ If the current direction (
+\begin_inset Formula $d_{i}$
+\end_inset
+
+) is a wall, we set the probabilities as 
+\begin_inset Formula $1/(4-card(posDirec))$
+\end_inset
+
+ for all the states 
+\begin_inset Formula $\{(x_{j},y_{j},d):\;d_{j}\notin notDirec\;and\;(x_{j},y_{j})=(x_{d_{j}},y_{d_{j}})\}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+\noindent
+Being 
+\begin_inset Formula $(x_{d_{j}},y_{d_{j}})$
+\end_inset
+
+ the coordinates resulting at moving from the position at the state 
+\begin_inset Formula $i$
+\end_inset
+
+ in the direction 
+\begin_inset Formula $d_{j}$
+\end_inset
+
+.
+ We call the set that contains this coordinates surroundings (
+\begin_inset Formula $S$
+\end_inset
+
+) and 
+\begin_inset Formula $S_{j}$
+\end_inset
+
+the specific ones according to direction 
+\begin_inset Formula $d_{j}$
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+\noindent
+If 
+\begin_inset Formula $d_{i}$
+\end_inset
+
+ is not a wall, then for 
+\begin_inset Formula $(x_{d_{i}},y_{d_{i}},d_{i})$
+\end_inset
+
+ we set the possibilities to 
+\begin_inset Formula $0.7$
+\end_inset
+
+.
+ And for the rest of the states with 
+\begin_inset Formula $d_{j}$
+\end_inset
+
+ not at 
+\begin_inset Formula $notDirec$
+\end_inset
+
+ with coordinates belonging to 
+\begin_inset Formula $S_{j}$
+\end_inset
+
+, we set 
+\begin_inset Formula $0.3/(4-card(notDirec)-1)$
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+T[i][j]=\begin{cases}
+0 & if\;d_{j}\in notDirec\;or\;(x_{j},y_{j})\notin S_{j}\\
+1/(4-card(posDirec)) & else\;if\;d_{i}\in notDirec\\
+0.7 & else\;if\;d_{j}=d_{i}\\
+0.3/(4-card(notDirec)-1) & else
+\end{cases}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection
+Sensor Model (
+\begin_inset Formula $O$
+\end_inset
+
+ )
+\end_layout
+
+\begin_layout Standard
+\noindent
+For generating the sensor model we used the function 
+\emph on
+sensorModel(Point evidence)
+\emph default
+, that gets a point as evidence, and generates a diagonal matrix as big
+ as number of possible states.
+\end_layout
+
+\begin_layout Standard
+\noindent
+\begin_inset Formula 
+\[
+O[i][j]=\begin{cases}
+P(e_{t}|X_{t}=i) & i=j\\
+0 & i\neq j
+\end{cases}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+Being 
+\begin_inset Formula $X_{t}$
+\end_inset
+
+ the state, and 
+\begin_inset Formula $e_{t}$
+\end_inset
+
+the evidence that we got.
+\end_layout
+
+\begin_layout Standard
+\noindent
+If the evidence is null, we put the same probability to all states.
+ In this case it doesn't matter because at the end we'll normalized the
+ matrix.
+ Otherwise, for each state 
+\begin_inset Formula $i$
+\end_inset
+
+, we'll calculate 
+\begin_inset Formula $d_{i}:=\{max\{|x_{i}-x_{e}|,|y_{i}-y_{e}|\}\}$
+\end_inset
+
+ with 
+\begin_inset Formula $(x_{i},y_{i})$
+\end_inset
+
+ the position at 
+\begin_inset Formula $i$
+\end_inset
+
+ and 
+\begin_inset Formula $(x_{e},y_{e})$
+\end_inset
+
+ the evidence that we've got.
+ And we assign it according to:
+\end_layout
+
+\begin_layout Standard
+\noindent
+\begin_inset Formula 
+\[
+O[i][j]=\begin{cases}
+0.1/4 & if\;d_{i}=0\\
+0.05/4 & else\;if\;d_{i}=1\\
+0.025/4 & else\;if\;d_{i}=2\\
+0 & else
+\end{cases}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+Then we normalize 
+\begin_inset Formula $O$
+\end_inset
+
+.
+\begin_inset Newline newline
+\end_inset
+
+
+\begin_inset Newline newline
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+We keep the matrix 
+\begin_inset Formula $F\in{\cal {M}}_{N\times1}$
+\end_inset
+
+with 
+\begin_inset Formula $N$
+\end_inset
+
+ the number of states.
+ 
+\end_layout
+
+\begin_layout Standard
+\noindent
+Then, using that 
+\begin_inset Formula $F_{t+1}=O\times T^{t}\times F_{t}$
+\end_inset
+
+, we get the probability of each state.
+ Then, we normalize, and we select the states that have the more possibilities.
+ 
+\end_layout
+
+\begin_layout Section
+\noindent
+Robot
+\end_layout
+
+\begin_layout Standard
+The 
+\emph on
+Robot 
+\emph default
+has three functions: to update the direction, update the position and update
+ the sensor.
+\end_layout
+
+\begin_layout Subsection
+Direction
+\end_layout
+
+\begin_layout Standard
+To update the direction, first we check that the current one doesn't lead
+ the robot into a wall.
+ In that case, we select between the new directions with the same probabilities.
+ Otherwise, we keep in the same direction with a 
+\begin_inset Formula $70\%$
+\end_inset
+
+ and we change with 
+\begin_inset Formula $30\%$
+\end_inset
+
+.
+ Is very similar to calculate the probabilities at the transition matrix,
+ but we don't consider the position.
+ 
+\end_layout
+
+\begin_layout Subsection
+Position
+\end_layout
+
+\begin_layout Standard
+After updating the direction, we update the new position according to that
+ new direction.
+\end_layout
+
+\begin_layout Subsection
+Sensor
+\end_layout
+
+\begin_layout Standard
+After updating the new position, we update the information the sensor will
+ give.
+ With 
+\begin_inset Formula $10\%$
+\end_inset
+
+ it will return the real position, with 
+\begin_inset Formula $40\%$
+\end_inset
+
+, one of the eight surrounding squares, with also 
+\begin_inset Formula $40\%$
+\end_inset
+
+, one of the sixteen other subsurrounding ones and with 
+\begin_inset Formula $10\%$
+\end_inset
+
+, noting.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+P(e|i)=\begin{cases}
+0.1 & if\;e=i\\
+0.05 & else\;if\;d_{i}=1\\
+0.025 & else\;if\;d_{i}=2\\
+0 & else
+\end{cases}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Statistics
+\end_layout
+
+\begin_layout Standard
+For checking the veracity of our approximation, we've create a class that
+ keeps track of the exactness.
+ In this class we use the Manhattan distance, defined as the simple sum
+ of the horizontal and vertical components.
+ This way, every step we calculate the Manhattan distance of the real position
+ and the best f our guesses.
+ Then we calculate the average and the variance.
+ 
+\end_layout
+
+\begin_layout Subsection
+\noindent
+Average
+\end_layout
+
+\begin_layout Standard
+\noindent
+The Average (
+\begin_inset Formula $\mu_{t}$
+\end_inset
+
+) of a sample at the step 
+\begin_inset Formula $t$
+\end_inset
+
+ with samples 
+\begin_inset Formula $x_{1...t}$
+\end_inset
+
+, is define as:
+\end_layout
+
+\begin_layout Standard
+\noindent
+\begin_inset Formula 
+\[
+\mu_{t}=\frac{\text{1}}{t}\sum_{i=1}^{^{N}}x_{i}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+In this case we are going to calculate it using a recursive function.Using
+ induction we can easily proof that
+\end_layout
+
+\begin_layout Standard
+\noindent
+\begin_inset Formula 
+\[
+\mu_{t}=\frac{(t-1)\times\mu_{t-\text{1}}+x_{t}}{t}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+Being 
+\begin_inset Formula $x_{t}$
+\end_inset
+
+ the value at the current step.
+ 
+\end_layout
+
+\begin_layout Subsection
+\noindent
+Variance and Standard deviation 
+\end_layout
+
+\begin_layout Standard
+\noindent
+First we calculate the variance (
+\begin_inset Formula $\sigma_{t}^{2}$
+\end_inset
+
+) and we get the standard deviation with it to see more clearly the result.
+ 
+\end_layout
+
+\begin_layout Standard
+\noindent
+\begin_inset Formula 
+\[
+\sigma_{t}^{2}=\frac{1}{t-1}\times\sum_{i=1}^{t}(x_{i}-\mu_{t})^{2}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+Using that 
+\begin_inset Formula $\sigma_{t-1}^{2}=\frac{1}{t-1}\sum_{i=0}^{t-1}(x_{i}-\mu_{i})^{2}$
+\end_inset
+
+, we get the recursive formula
+\end_layout
+
+\begin_layout Standard
+\noindent
+\begin_inset Formula 
+\[
+\sigma_{t}^{2}=\frac{(x_{t}-\mu_{t})^{2}}{t-1}+\frac{t-1}{t}\times\sigma_{t-1}^{2}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+Then we get the Standard deviation as 
+\begin_inset Formula $\sigma_{t}=\sqrt{\sigma_{t}^{2}}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Subsection
+\noindent
+Results
+\end_layout
+
+\begin_layout Standard
+\noindent
+We've try the search with a 
+\begin_inset Formula $10.000$
+\end_inset
+
+ data sample.
+ 
+\end_layout
+
+\begin_layout Standard
+\noindent
+\begin_inset Tabular
+<lyxtabular version="3" rows="8" columns="5">
+<features rotate="0" tabularvalignment="middle">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<row>
+<cell alignment="center" valignment="top" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell multirow="3" alignment="center" valignment="middle" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Average (
+\begin_inset Formula $\mu_{n}$
+\end_inset
+
+)
+\end_layout
+
+\end_inset
+</cell>
+<cell multirow="3" alignment="center" valignment="middle" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Standard deviation (
+\begin_inset Formula $\sigma_{n}$
+\end_inset
+
+)
+\end_layout
+
+\end_inset
+</cell>
+<cell multicolumn="1" alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Relative Error (
+\begin_inset Formula $\eta$
+\end_inset
+
+)
+\end_layout
+
+\end_inset
+</cell>
+<cell multicolumn="2" alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+n
+\end_layout
+
+\end_inset
+</cell>
+<cell multirow="4" alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell multirow="4" alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\eta_{\mu_{n}}=\frac{\mu_{n}-\mu_{L}}{\mu_{L}}$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\eta_{\sigma_{n}}=\frac{\sigma_{n}-\sigma_{L}}{\sigma_{L}}$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+#1
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $1,44$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $1,258$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $-4,00\%$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $-3,23\%$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+#2
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $1,414$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $1,279$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $-5,73\%$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $-1,62\%$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+#3
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $1,528$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $1,352$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $1,87\%$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $4,00\%$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+#4
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $1,503$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $1,305$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $0,20\%$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $0,38\%$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+#5
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $1,521$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $1,301$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $1,40\%$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $0,08\%$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+L
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $1,5$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $1,3$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\eta_{\mu}=max\{|\eta_{\mu_{n}}|:n=1...5\}=5.73\%$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\eta_{\sigma}=max\{|\eta_{\sigma_{n}}|:n=1...5\}=4.00\%$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+This way we can conclude that probably: 
+\begin_inset Formula 
+\begin{eqnarray*}
+\mu_{L}:=lim_{n\to\infty}\mu_{t} & = & 1,5\\
+\sigma_{L}:=lim_{n\to\infty}\sigma_{t} & = & 1,3
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+With this conclusions, the Relative error would be 
+\begin_inset Formula $\approx5\%$
+\end_inset
+
+, so we can consider those limits.
+ 
+\end_layout
+
+\begin_layout Standard
+\noindent
+Then, the Average of 
+\begin_inset Formula $\mu=1,5\;squares$
+\end_inset
+
+ means that the distance between our approximation and the real position
+ is usually one and a half squared.
+ The standard deviation 
+\begin_inset Formula $\sigma=1,3\;squares$
+\end_inset
+
+ symbolize the distance between the data and the average.
+ This results have sense since every time the robot changes the direction,
+ is more difficult to track the robot again.
+ 
+\end_layout
+
+\begin_layout Section
+\noindent
+MainWindow
+\end_layout
+
+\begin_layout Standard
+\noindent
+The MainWindow represents the room in which the robot is in a grid.
+ There we represent the current position as a yellow line looking in the
+ direction 
+\begin_inset Formula $[1]$
+\end_inset
+
+.
+ We also represent each triangle of each square that represents the direction
+ with a color from small probabilities, to big probabilities 
+\begin_inset Formula $[2]$
+\end_inset
+
+.
+ And, at last, we also represent the states with higher probability for
+ the 
+\emph on
+HmmAgent 
+\emph default
+with a blue line
+\emph on
+s 
+\begin_inset Formula $[3]$
+\end_inset
+
+.
+ 
+\emph default
+The triangles representing all the states are colored according to the scale
+ presented in the image.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Graphics
+	filename window.jpg
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Graphics
+	filename colors.jpg
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Running the program
+\end_layout
+
+\begin_layout Standard
+To run the program start a terminal window and type the following commands
+ to navigate to and start the program:
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+	cd ~ada10del/ai/Hmm/
+\end_layout
+
+\begin_layout Plain Layout
+
+	java -jar hmm.jar
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Bibliography
+\begin_inset CommandInset bibitem
+LatexCommand bibitem
+key "key-1-1"
+
+\end_inset
+
+Russell, Stuart and Norvig, Peter.
+ 
+\bar under
+Artificial Intelligence: A Modern Approach
+\bar default
+, 2010.
+\end_layout
+
+\end_body
+\end_document
